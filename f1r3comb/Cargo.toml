@@ -17,13 +17,13 @@ edition = "2021"
 license = "Apache-2.0"
 authors = ["F1R3FLY.io"]
 
-# The source side is the campf1r3 workspace (K1ndl1ng parser and normaliser),
-# checked out as a sibling directory:  git clone https://github.com/F1R3FLY-io/campf1r3
-# Tested against campf1r3 revision b46e16c25458df8d2309554b316f3818a8e0a276.
 [workspace.dependencies]
-k1ndl1ng-ast = { path = "../campf1r3/crates/k1ndl1ng-ast" }
-k1ndl1ng-parse = { path = "../campf1r3/crates/k1ndl1ng-parse" }
-k1ndl1ng-norm = { path = "../campf1r3/crates/k1ndl1ng-norm" }
+# The source side is the campf1r3 workspace's K1ndl1ng parser and
+# normaliser, vendored unmodified from F1R3FLY-io/campf1r3 at revision
+# b46e16c25458df8d2309554b316f3818a8e0a276 (see vendor/README.md).
+k1ndl1ng-ast = { path = "vendor/k1ndl1ng-ast" }
+k1ndl1ng-parse = { path = "vendor/k1ndl1ng-parse" }
+k1ndl1ng-norm = { path = "vendor/k1ndl1ng-norm" }
 
 [profile.release]
 debug = false

@@ -418,6 +418,7 @@ name = "k1ndl1ng-norm"
 version = "0.1.0"
 dependencies = [
  "k1ndl1ng-ast",
+ "k1ndl1ng-parse",
 ]
 
 [[package]]

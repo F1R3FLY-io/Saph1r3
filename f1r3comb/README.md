@@ -19,13 +19,13 @@ Each stage's artefact can be saved, and any artefact can be fed back in as input
 
 ## Build
 
-The front end is the K1ndl1ng parser and normaliser from campf1r3, checked out as a sibling:
+The front end is the K1ndl1ng parser and normaliser from campf1r3, vendored unmodified under
+`vendor/` at revision `b46e16c` (see `vendor/README.md`), so the workspace builds on its own:
 
 ```
-git clone https://github.com/F1R3FLY-io/campf1r3        # tested at b46e16c25458df8d2309554b316f3818a8e0a276
 cd f1r3comb
 cargo build --release                                     # binary: target/release/f1r3comb
-cargo test --workspace --features f1r3comb-check/gpu      # 48 tests; device tests skip without an adapter
+cargo test --workspace --features f1r3comb-check/gpu      # 48 tests here + 33 in vendor/; device tests skip without an adapter
 ```
 
 The GPU backend is wgpu 25 (Vulkan, Metal, DX12). A software Vulkan driver is enough:

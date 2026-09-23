@@ -1,0 +1,9 @@
+[package]
+name = "k1ndl1ng-parse"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Lexer and explicit-stack parser for the rholang kernel. Text in, tree out."
+
+[dependencies]
+k1ndl1ng-ast = { path = "../k1ndl1ng-ast" }

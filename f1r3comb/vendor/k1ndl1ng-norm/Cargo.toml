@@ -1,0 +1,12 @@
+[package]
+name = "k1ndl1ng-norm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Normal form for the rholang kernel: de Bruijn, ordering, encoding, hashing, substitution."
+
+[dependencies]
+k1ndl1ng-ast = { path = "../k1ndl1ng-ast" }
+
+[dev-dependencies]
+k1ndl1ng-parse = { path = "../k1ndl1ng-parse" }
