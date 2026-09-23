@@ -246,3 +246,159 @@ fn corpus_on_gpu() {
         assert!(v.ok(), "W: {v:?}");
     }
 }
+
+/// Obl. 11.5: the corpus under both schemes. Observations must agree where
+/// the curried build reaches; the programs it cannot erect within the
+/// discipline are counted separately (Mat v0.5 Obl. 11.4).
+#[test]
+fn both_schemes_on_the_corpus() {
+    let mut reached = Vec::new();
+    let mut store_hazard = 0;
+    let mut no_template = 0;
+    for src in corpus().into_iter().chain([chans(W), chans(NEAR_MISS)]) {
+        match f1r3comb_lower::compile_source_with(&src, Scheme::Curried) {
+            Ok(c) => {
+                let mut a = f1r3comb_term::addr::Allocator::new();
+                for s in 0..8 {
+                    let v = judge(&c.source, &run_host(&c.term, s, &mut a), 20_000);
+                    assert!(v.ok(), "curried {src} seed {s}: {v:?}");
+                }
+                reached.push(src);
+            }
+            Err(ds) => {
+                if ds.iter().any(|d| d.code == "comb-curried-store") {
+                    store_hazard += 1;
+                } else if ds.iter().any(|d| d.code == "comb-curried-reach") {
+                    no_template += 1;
+                } else {
+                    panic!("{src}: {ds:?}");
+                }
+            }
+        }
+    }
+    eprintln!(
+        "curried erection: {} of 21 programs reached and agree with inst and the source; \
+         {store_hazard} need a joined store (Hazard 3.1), {no_template} mention an enclosing unit's names",
+        reached.len()
+    );
+    assert!(!reached.is_empty());
+}
+
+/// Obl. 11.6: for every unit the curried build reaches, the atoms `inst`
+/// erects equal the atoms the curried erection produces when run to
+/// completion, up to the gates' `b`, which the curried build names
+/// statically.
+#[test]
+fn contexts_round_trip() {
+    let units = [
+        "for(y <- $A){ *y }",
+        "for(y <- $A){ y!(Nil) }",
+        "for(y <- $A){ $C!(*y) }",
+        "for(y <- $A){ Nil }",
+        "for(y <- $A){ for(z <- y){ $D!(Nil) } }",
+        "for(y <- $A){ @{*y}!(Nil) }",
+        "for(y <- $A){ $B!(Nil) } | for(z <- $C){ $D!(Nil) }",
+    ];
+    let mut checked = 0;
+    for u in units {
+        let src = chans(u);
+        let Ok(cur) = f1r3comb_lower::compile_source_with(&src, Scheme::Curried) else { continue };
+        let ins = compile(&src, Scheme::Inst);
+        let big = [&ins.term, &cur.term].map(f1r3comb_term::addr::largest_name).into_iter().max_by_key(|n| n.size()).unwrap();
+        let root = f1r3comb_term::addr::Allocator::new().root(&big);
+        let erect = |t: &Term| f1r3comb_par::run(&f1r3comb_par::deploy_at(t, &root), &Default::default(), &mut f1r3comb_par::Host).final_term;
+        let (fi, fc) = (erect(&ins.term), erect(&cur.term));
+        // the erected atoms that mention the instance's address
+        let scoped = |t: &Term| -> Vec<f1r3comb_term::Atom> {
+            let mut v: Vec<_> = t
+                .atoms()
+                .iter()
+                .filter(|a| a.names().iter().any(|n| f1r3comb_term::addr::is_prefix(&root, n)) || a.shape() == Shape::Q)
+                .cloned()
+                .collect();
+            v.sort();
+            v
+        };
+        // curried's static b corresponds to inst's leaf b: compare every
+        // scoped atom that does not name a gate
+        let gate_free = |v: Vec<f1r3comb_term::Atom>| -> Vec<Vec<u8>> {
+            v.into_iter().filter(|a| !matches!(a.shape(), Shape::S | Shape::Q)).map(|a| a.encode().to_vec()).collect()
+        };
+        let (a, b) = (scoped(&fi), scoped(&fc));
+        assert_eq!(gate_free(a.clone()), gate_free(b.clone()), "{src}");
+        // and the gates agree up to b: same stored bodies, same s(p0, _, c)
+        let stores = |v: &[f1r3comb_term::Atom]| -> Vec<Vec<u8>> {
+            let mut x: Vec<_> = v.iter().filter(|a| a.shape() == Shape::Q).map(|a| a.store().unwrap().encode().to_vec()).collect();
+            x.sort();
+            x
+        };
+        assert_eq!(stores(&a), stores(&b), "{src}");
+        checked += 1;
+    }
+    eprintln!("contexts round-trip on {checked} units");
+    assert!(checked >= 5);
+}
+
+/// Obl. 11.2: the adversarial profile. Under `inst` it changes nothing
+/// observable (Lem. 6.11); under the literal erection it drives mixing up.
+#[test]
+fn adversarial_cross_instance_scheduler() {
+    use f1r3comb_par::{Config, Resolver};
+    let seeds: Vec<u64> = (0..100).collect();
+    for src in [W, W3, NEAR_MISS] {
+        let c = compile(&chans(src), Scheme::Inst);
+        let mut a = f1r3comb_term::addr::Allocator::new();
+        for s in &seeds {
+            let (t, _) = f1r3comb_par::deploy(&c.term, &mut a);
+            let cfg = Config { seed: *s, resolver: Resolver::CrossInstance, ..Default::default() };
+            let r = f1r3comb_par::run(&t, &cfg, &mut f1r3comb_par::Host);
+            let v = judge(&c.source, &r, 20_000);
+            assert!(v.ok(), "{src} seed {s}: {v:?}");
+        }
+    }
+    // E5's literal arm: the adversary finds a mixed erection on every run
+    use crate::phase2exp::Fresh;
+    let mut mixed_runs = [0usize; 2];
+    for (k, resolver) in [Resolver::MaximalProgress, Resolver::CrossInstance].into_iter().enumerate() {
+        for s in 0..50 {
+            let t = crate::phase2exp::e5_term(crate::phase2exp::Arm::Literal, 2, &mut Fresh::new());
+            let cfg = Config { seed: s, resolver, ..Default::default() };
+            let r = f1r3comb_par::run(&t, &cfg, &mut f1r3comb_par::Host);
+            if crate::phase2exp::mixed_fws(&r.final_term) > 0 {
+                mixed_runs[k] += 1;
+            }
+        }
+    }
+    eprintln!("E5 literal, 2 instances: runs with mixing {}/50 maximal progress, {}/50 cross-instance", mixed_runs[0], mixed_runs[1]);
+    assert!(mixed_runs[1] > mixed_runs[0]);
+    // and the conforming arms stay clean under the adversary
+    for arm in [crate::phase2exp::Arm::Curried, crate::phase2exp::Arm::Inst] {
+        for n in [2, 4, 8] {
+            for s in 0..20 {
+                let t = crate::phase2exp::e5_term(arm, n, &mut Fresh::new());
+                let cfg = Config { seed: s, resolver: Resolver::CrossInstance, ..Default::default() };
+                let r = f1r3comb_par::run(&t, &cfg, &mut f1r3comb_par::Host);
+                assert_eq!(crate::phase2exp::mixed_fws(&r.final_term), 0, "{arm:?} n={n}");
+            }
+        }
+    }
+}
+
+/// Req. 8.8: golden traces — source, IR, target, encoding, hash and the full
+/// reduction sequence — for W (golden i), W at phase one (golden ii) and D_x
+/// (golden iii). Regenerate only by running with `F1R3COMB_BLESS=1`.
+#[test]
+fn golden_files() {
+    let dx = "for(y <- $B){ $B!(*y) | *y } | $B!(for(y <- $B){ $B!(*y) | *y })";
+    for (name, src, steps) in [("w", W, 1000u64), ("dx", dx, 70)] {
+        let text = crate::golden(&chans(src), steps);
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("golden").join(format!("{name}.txt"));
+        if std::env::var("F1R3COMB_BLESS").is_ok() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &text).unwrap();
+            continue;
+        }
+        let want = std::fs::read_to_string(&path).expect("golden file missing; run with F1R3COMB_BLESS=1");
+        assert!(want == text, "{name}: golden file differs (regenerate with F1R3COMB_BLESS=1 if intended)");
+    }
+}

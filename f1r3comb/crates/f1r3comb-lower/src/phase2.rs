@@ -25,7 +25,8 @@ use f1r3comb_ir::{IName, Node};
 use f1r3comb_term::addr::{f_star, gamma, hole_leaf, leaf, r_star};
 use f1r3comb_term::artefact::Scheme;
 use f1r3comb_term::{Atom, CName, Hash32, Shape, Term};
-use std::collections::HashMap;
+use crate::{Diag, Severity};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
 enum Loc {
@@ -38,6 +39,9 @@ struct Env(HashMap<u32, Loc>);
 
 pub struct Phase2 {
     pub scheme: Scheme,
+    /// Variables the curried erection names statically (the gates' `b`).
+    pub static_vars: HashSet<u32>,
+    pub diags: Vec<Diag>,
     memo: HashMap<Hash32, CName>,
     /// Units compiled with bound names (wrappers or positional).
     pub units: u64,
@@ -82,7 +86,7 @@ fn mentions(n: &Node, vars: &[u32]) -> bool {
 
 impl Phase2 {
     pub fn new(scheme: Scheme) -> Phase2 {
-        Phase2 { scheme, memo: HashMap::new(), units: 0 }
+        Phase2 { scheme, static_vars: HashSet::new(), diags: Vec::new(), memo: HashMap::new(), units: 0 }
     }
 
     /// The target term of a closed IR process.
@@ -129,7 +133,13 @@ impl Phase2 {
                 }
                 atoms.into_iter().map(|a| self.atom(a, &env2, depth)).collect()
             }
-            Scheme::Inst | Scheme::Curried => {
+            Scheme::Curried => {
+                for (j, v) in own.iter().enumerate() {
+                    env2.0.insert(*v, Loc::Hole { level: depth, path: gamma(j as u32 + 1) });
+                }
+                self.curried(p, &own, atoms, env, env2, depth)
+            }
+            Scheme::Inst => {
                 for (j, v) in own.iter().enumerate() {
                     env2.0.insert(*v, Loc::Hole { level: depth, path: gamma(j as u32 + 1) });
                 }
@@ -149,6 +159,125 @@ impl Phase2 {
         }
     }
 
+    fn diag(&mut self, sev: Severity, code: &'static str, message: String) {
+        if !self.diags.iter().any(|d| d.code == code && d.message == message) {
+            self.diags.push(Diag { code, severity: sev, span: None, message });
+        }
+    }
+
+    /// The curried erection (draft 3 §6.7; F1R3Comb v0.6 Req. 5.27, Rem. 5.21):
+    /// one `cstar_A[w](t, f)` and one `e(f)` per atom mentioning the unit's
+    /// names, the address fanned out to them by a `d`-tree on static
+    /// channels. The gates' `b` are static. A gate whose stored body mentions
+    /// the unit's names is built by the recipe of Req. 4.9 — its scoped atom
+    /// by `cstar`, the closed rest joined by `cons_|`, the store by `cons_q`
+    /// — which conforms only when one atom of the body is scoped; otherwise
+    /// the join is emitted, reported as `comb-curried-store` (Mat v0.5
+    /// Hazard 3.1), and rejected by the discipline check. An atom mentioning
+    /// a parent unit's names has no curried template at all
+    /// (`comb-curried-reach`).
+    fn curried(&mut self, p: &Node, own: &[u32], atoms: Vec<&Node>, env: &Env, mut env2: Env, depth: u32) -> Vec<Atom> {
+        let key = p.hash();
+        let mut nb = 0;
+        for v in own {
+            if self.static_vars.contains(v) {
+                env2.0.insert(*v, Loc::Static(static_name(&key, 0, nb)));
+                nb += 1;
+            }
+        }
+        let mut sc_i = 0u32;
+        let mut sc = |role: u32| {
+            sc_i += 1;
+            static_name(&key, role, sc_i)
+        };
+        enum Want {
+            Erect(Term),
+            Feed(Term, CName),
+        }
+        let mut outside = Vec::new();
+        let mut wants = Vec::new();
+        let mut gadgets = Vec::new();
+        for a in atoms {
+            if !mentions(a, own) {
+                outside.push(self.atom(a, env, depth));
+                continue;
+            }
+            let at = self.atom(a, &env2, depth + 1);
+            if at.free_holes() == 0 {
+                outside.push(at);
+                continue;
+            }
+            if at.shape() != Shape::Q {
+                if curried_template(&at) {
+                    wants.push(Want::Erect(Term::atom(at)));
+                } else {
+                    self.diag(Severity::Error, "comb-curried-reach", format!(
+                        "{} mentions the names of an enclosing unit; the curried template has no parameter for them",
+                        at.shape().name()
+                    ));
+                }
+                continue;
+            }
+            let b = at.names()[0].clone();
+            let (scoped, rest): (Vec<Atom>, Vec<Atom>) =
+                at.store().unwrap().atoms().iter().cloned().partition(|x| x.free_holes() > 0);
+            if !b.is_closed() || !scoped.iter().all(curried_template) {
+                self.diag(Severity::Error, "comb-curried-reach", "a stored body mentions the names of an enclosing unit".into());
+                continue;
+            }
+            if scoped.len() > 1 {
+                self.diag(Severity::Warning, "comb-curried-store", format!(
+                    "a gate's stored body mentions the unit's names in {} atoms; the curried erection must join them \
+                     with cons_| at static channels (Mat v0.5 Hazard 3.1)",
+                    scoped.len()
+                ));
+            }
+            let mut chans = Vec::new();
+            for x in scoped {
+                let g = sc(2);
+                wants.push(Want::Feed(Term::atom(x), g.clone()));
+                chans.push(g);
+            }
+            if !rest.is_empty() {
+                let k = sc(3);
+                gadgets.push(Atom::m(k.clone(), CName::quote(Term::from_atoms(rest))));
+                chans.push(k);
+            }
+            let mut acc = chans[0].clone();
+            for nxt in chans.into_iter().skip(1) {
+                let o = sc(3);
+                gadgets.push(Atom::cons(acc, nxt, o.clone()));
+                acc = o;
+            }
+            let (kb, f) = (sc(3), sc(3));
+            gadgets.push(Atom::m(kb.clone(), b));
+            gadgets.push(Atom::cons_member(Shape::Q, vec![kb, acc, f.clone()]).unwrap());
+            gadgets.push(Atom::e(f));
+        }
+        // the address, once per erecting constructor (Req. 5.12)
+        let n = wants.len();
+        let mut frontier = vec![r_star()];
+        while frontier.len() < n {
+            let ch = frontier.remove(0);
+            let (x, y) = (sc(1), sc(1));
+            outside.push(Atom::d(ch, x.clone(), y.clone()));
+            frontier.push(x);
+            frontier.push(y);
+        }
+        for (t, w) in frontier.into_iter().zip(wants) {
+            match w {
+                Want::Erect(tm) => {
+                    let f = sc(4);
+                    outside.push(Atom::cstar(t, f.clone(), tm));
+                    outside.push(Atom::e(f));
+                }
+                Want::Feed(tm, g) => outside.push(Atom::cstar(t, g, tm)),
+            }
+        }
+        outside.extend(gadgets);
+        outside
+    }
+
     fn atom(&mut self, a: &Node, env: &Env, depth: u32) -> Atom {
         let Node::Atom { shape, names, store } = a else { unreachable!() };
         let ns: Vec<CName> = names.iter().map(|n| self.name(n, env, depth)).collect();
@@ -160,6 +289,34 @@ impl Phase2 {
             s => Atom::new(*s, ns).expect("phase one emits well-formed atoms"),
         }
     }
+}
+
+/// A static channel of the curried erection: a function of the unit's
+/// phase-one image, the channel's role and its index (Req. 6.4). Its top
+/// node is `s`, so it is neither a leaf, a root, nor a translated name.
+pub fn static_name(key: &Hash32, role: u32, i: u32) -> CName {
+    let kchain = |n: u32| {
+        let mut c = CName::nil();
+        for _ in 0..n {
+            c = CName::quote(Term::atom(Atom::k(c)));
+        }
+        c
+    };
+    let mut h = CName::nil();
+    for b in 0..64 {
+        let bit = (key.0[b / 8] >> (7 - b % 8)) & 1 == 1;
+        h = CName::quote(Term::atom(if bit { Atom::k(h) } else { Atom::br(h, CName::nil()) }));
+    }
+    CName::quote(Term::atom(Atom::s(h, kchain(role), kchain(i))))
+}
+
+/// The curried validity class (Mat v0.5 Req. 3.2): one atom whose name
+/// arguments are paths beneath the innermost hole or closed names, with no
+/// store or context mentioning a hole.
+pub fn curried_template(a: &Atom) -> bool {
+    a.store().is_none_or(|s| s.is_closed())
+        && a.context().is_none()
+        && a.names().iter().all(|n| n.is_closed() || f1r3comb_term::addr::spine(n).0.is_hole() == Some(0))
 }
 
 /// A leaf beneath a hole or a root, or a positional name: never an encoding

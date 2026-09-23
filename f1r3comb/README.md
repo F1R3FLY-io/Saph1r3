@@ -10,7 +10,8 @@ This workspace implements `rho-combinators/` in F1R3FLY-io/publications at `3dbf
 * the two-phase translation of **draft 3 §6**. Phase one compiles into the combinators
   extended with `new`. Phase two eliminates the binder by running each instance at a
   run-time address and erecting it with the context-instantiation combinator `inst` (§6.7);
-* the **F1R3Comb v0.6** compiler specification, presentation A, with `inst` as the erection;
+* the **F1R3Comb v0.6** compiler specification, presentation A, with `inst` as the erection
+  and the curried erection as the `--scheme curried` build;
 * the **F1R3Comb-Mat v0.5** bulk-synchronous matrix machine, host and wgpu device, with
   `inst` and the curried `cstar` sharing one instantiation kernel.
 
@@ -24,7 +25,7 @@ The front end is the K1ndl1ng parser and normaliser from campf1r3, checked out a
 git clone https://github.com/F1R3FLY-io/campf1r3        # tested at b46e16c25458df8d2309554b316f3818a8e0a276
 cd f1r3comb
 cargo build --release                                     # binary: target/release/f1r3comb
-cargo test --workspace --features f1r3comb-check/gpu      # 43 tests; device tests skip without an adapter
+cargo test --workspace --features f1r3comb-check/gpu      # 48 tests; device tests skip without an adapter
 ```
 
 The GPU backend is wgpu 25 (Vulkan, Metal, DX12). A software Vulkan driver is enough:
@@ -37,6 +38,8 @@ f1r3comb compile examples/w.rho -o w.comb --emit-ir-text w.txt --emit-gpu w.gpu/
 f1r3comb run w.comb --trace                 # deploys at a fresh root address, runs on the host
 f1r3comb run w.gpu --machine gpu            # the bundle is the deployed state
 f1r3comb lattice examples/w.rho             # phase-one and phase-two points
+f1r3comb compile examples/race.rho --scheme curried   # the logic's build, where it reaches
+f1r3comb run w.comb --resolver cross-instance         # the adversarial scheduler (host only)
 f1r3comb compile examples/w.rho --scheme positional -o wp.comb   # the unsound negative control
 f1r3comb run examples/dx.rho --max-steps 200 --trace             # the recursion combinator
 ```
@@ -93,6 +96,17 @@ larger than every name of the image, and roots are pairwise prefix-incomparable.
 * no static channel occurring as a value (`comb-static-not-fresh`);
 * no hole outside a context (`comb-context-misplaced`).
 
+**The curried build** (`--scheme curried`, Req. 5.27) emits one `cstar(t, f, T) | e(f)`
+per atom mentioning the unit's names. `T` is that atom with its names as paths beneath the
+hole, and a `d`-tree on static channels fans the address out to each `cstar`. The gates'
+`b` become static names (unmarked, Rem. 6.20), as in `phase2.py`, so a stored body with
+one scoped atom is built by the recipe of Req. 4.9: `cstar` for the atom, `cons_|` with
+the closed rest, then `cons_q`. A body with two or more scoped atoms needs a join of two
+address-derived names at static channels. The compiler reports this as
+`comb-curried-store`, and the discipline check rejects it. An atom that mentions an
+enclosing unit's names has no curried template at all (`comb-curried-reach`). The static
+channels are functions of the unit's IR hash, a role and an index (Req. 6.4).
+
 **Marking** is draft 3 Rem. 6.20. Each marked name belongs to one (receive, occurrence)
 flow. A receive is unsafe if some non-distributor atom joins two flows.
 
@@ -102,14 +116,14 @@ flow. A receive is unsafe if some non-distributor atom joins two flows.
 |---|---|
 | `f1r3comb-term` | Target: 21 shapes (9 atoms, `cons_|`, a constructor per atom shape, `inst`, `cstar`), the structured tag layout, holes and contexts, `fill`, encoding/hashing/decoding, the **generated** rule table, addresses and the allocator, the printer, lattice, `.comb` v2. |
 | `f1r3comb-ir` | RC^ν: `New`, variables, nameless encoding, α-equivalence, free variables, counts, rendering. |
-| `f1r3comb-lower` | Checks, phase one, phase two (`inst`; `positional` as negative control), post-passes, marking, header. |
+| `f1r3comb-lower` | Checks, phase one, phase two (`inst`; `curried`; `positional` as negative control), post-passes with address propagation, marking, header. |
 | `f1r3comb-mat` | Interned state with a hole kind and a `free` column; templates as the third column; `fill` over the interned form, visiting only hole-bearing names; `.cmat` v2. |
-| `f1r3comb-par` | Host machine over the generated table; `Instantiate` conclusions for `inst`/`cstar` (with the curried validity check); names built per step; `deploy`. |
+| `f1r3comb-par` | Host machine over the generated table; `Instantiate` conclusions for `inst`/`cstar` (with the curried validity check); names built per step; `deploy`; the `cross-instance` adversarial resolver. |
 | `f1r3comb-gpu` | WGSL generated for any shape and rule count; `inst` only on the device. |
-| `f1r3comb-check` | K0 reference reducer, observation over encoded names, the corpus, W and its variants, the E5–E7 experiments, the compiled D_x. |
+| `f1r3comb-check` | K0 reference reducer, observation over encoded names, the corpus, W and its variants, the E5–E7 experiments, the compiled D_x, both schemes, golden files (`golden/`, regenerated only with `F1R3COMB_BLESS=1`). |
 | `f1r3comb-cli` | The binary. |
 
-## What is verified (43 tests)
+## What is verified (48 tests)
 
 | test | what it checks | result |
 |---|---|---|
@@ -122,6 +136,10 @@ flow. A receive is unsafe if some non-distributor atom joins two flows.
 | Conflation, freshness, discipline | `Q \| m(@Q,@P)` is stuck; the adversarial source name `@(x!(Nil))` is not apparatus and the root exceeds it; a literal erection is rejected with `comb-discipline` and `comb-o5-address` | pass |
 | Canonicity | permuted pars are α-equal at phase one and byte-equal at phase two | pass |
 | Golden (ii) | R's image binds its proxies, and W's image posts one address per drop | pass |
+| Golden files (Req. 8.8) | W and D_x: source, IR, target, encoding, hash, full reduction trace; in the W file, the two R instances are erected in the same step and the observation is `@X!(X)`, `@Y!(Y)` | pass |
+| Both schemes on the corpus (Obl. 11.5) | curried reaches 12 of 21 programs and agrees with `inst` and the source on 8 seeds each; 4 need a joined store; 5 mention an enclosing unit's names | pass |
+| Contexts round-trip (Obl. 11.6) | on 6 units, `C[σ]` equals the curried erection run to completion, byte for byte, except the gates' `b` | pass |
+| Adversarial scheduler (Obl. 11.2) | W, W3 and the near miss under `inst`, 100 seeds: 0 disagreements. E5 at 2 instances: literal mixes on 50/50 runs (23/50 under maximal progress); curried and `inst`, 2–8 instances: 0 | pass |
 | Nesting family | phase-one atoms grow linearly in nesting depth | pass |
 
 **E5–E7, three arms**, run on this machine with the images `phase2.py` builds:
@@ -130,6 +148,7 @@ flow. A receive is unsafe if some non-distributor atom joins two flows.
 |---|---|---|---|---|
 | E5 parallel steps | 5 | 3 | 2 | 5 / 3 / 2 |
 | E5 sequential steps, n = 2 | 16 | 10 | 4 | 16 / 10 / 4 |
+| E5 runs with mixing, n = 2 (parallel) | 23 / 50 | 0 | 0 | 29 / 0 / 0 |
 | E5 runs with mixing, n ≥ 4 | 48–50 / 50 | 0 | 0 | 48–50 / 0 / 0 |
 | E6 D_x, parallel steps per unfolding | — | {10} | {7} | {10} / {7} |
 | E6 D_x, sequential mean | — | 32.00 | 10.00 | 32.00 / 10.00 |
@@ -167,12 +186,13 @@ allocates a separate gate pair `b`, `c` and a posted address for the drop.
    A quotation containing both an input and a bound name is `comb-o5-unsupported`. The
    previous build rebuilt it with positional apparatus, which the two-phase design shows to
    be unsound.
-6. **`cstar` has provisional tag `0x63`.** The machine runs it, with the curried validity
-   check (`comb-mat-template`), for E5–E7, but the compiler does not emit it. See "Not
-   implemented".
-7. **The adversarial `CrossInstance` scheduler is replaced by 100 seeds of maximal
-   progress.** That schedule exhibits the crossing readily, at 49% and 85% on W and W3
-   under the positional build.
+6. **`cstar` has provisional tag `0x63`.**
+7. **Under the curried scheme the gates' `b` are static**, which is what `phase2.py`'s E6
+   does. The `inst` build keeps `b` bound, so the two schemes' erected gates differ in `b`
+   alone (Obl. 11.6 compares up to it).
+8. **The adversarial scheduler is a host resolver.** It reads a row's instance off its
+   names: the leaf's address is its spine minus the last Elias-gamma code. It needs the
+   intern table, so the device does not run it.
 
 ## Findings for the papers and specs
 
@@ -198,14 +218,20 @@ allocates a separate gate pair `b`, `c` and a posted address for the drop.
      adapter (`br`, `bl`) and a payload position needs a relay.
    - Links that act on public names must be placed inside the innermost enclosing input.
    - (o3) against a dynamic channel needs a proxy.
-5. **Marking must exclude distributors.** `d(q1, p1, p2)` mentions two flows but splits one
+5. **The curried build does not reach W.** W's gate stores `e(c1) | e(c2)`, two scoped
+   atoms, so Mat v0.5's curried-stores hazard applies to the paper's own regression term.
+   On the corpus, curried reaches 12 of 21 programs. Five of the misses have a different
+   cause: an inner input mentions an outer bound name, as in
+   `for(y<-a){ for(z<-b){ y!(*z) } }`. The curried template has one hole, so it has no way
+   to refer to a parent unit's names. A logic read over the curried build (Req. 5.27)
+   therefore sees neither class of program.
+6. **Marking must exclude distributors.** `d(q1, p1, p2)` mentions two flows but splits one
    message; counting it would mark the near miss unsafe.
 
 ## Not implemented
 
-* The `curried-erection` compiler build (Req. 5.27). The machine side is complete.
 * The fixed-arity path for safe units (decision 4). Presentation B.
 * Shortcuts (Rem. 6.4).
 * The CampF1R3-backed machine (`f1r3comb-space`, `f1r3comb-run`). All runs use the
   F1R3Comb-Mat machine.
-* Golden files regenerated by command, `wasm32` builds, and the performance targets.
+* `wasm32` builds and the performance targets.

@@ -73,8 +73,7 @@ fn diagnostics() {
     assert!(codes("new x in { x!(Nil) }").iter().any(|c| *c == "comb-level"));
     assert!(codes(&format!("for(y <- {B}){{ @{{for(z <- {C}){{ *y }}}}!(Nil) }}")).contains(&"comb-o5-unsupported"));
     assert!(codes(&format!("{B}!(Nil)")).is_empty());
-    let e = compile_source_with(&format!("{B}!(Nil)"), Scheme::Curried).err().unwrap();
-    assert!(e.iter().any(|d| d.code == "comb-scheme-mismatch"));
+    assert!(compile_source_with(&format!("{B}!(Nil)"), Scheme::Curried).is_ok());
 }
 
 #[test]
@@ -105,7 +104,20 @@ fn discipline_holds_on_emitted_images_and_fails_on_a_literal_one() {
     let mut diags = Vec::new();
     verify::check(&lit, &mut diags);
     assert!(diags.iter().any(|d| d.code == "comb-discipline"), "{diags:?}");
+    // an (o5) chain constructor at an allocated channel fed an address
+    let o5 = Term::atom(Atom::inst(
+        st(0),
+        st(1),
+        Term::from_atoms(vec![
+            Atom::m(hole_leaf(0, &[true]), hole_leaf(0, &[false])),
+            Atom::m(st(5), CName::nil()),
+            Atom::cons_m(hole_leaf(0, &[true]), st(5), hole_leaf(0, &[false, true])),
+        ]),
+    ));
+    let mut diags = Vec::new();
+    verify::check(&o5, &mut diags);
     assert!(diags.iter().any(|d| d.code == "comb-o5-address"), "{diags:?}");
+    assert!(!diags.iter().any(|d| d.code == "comb-discipline"), "{diags:?}");
 }
 
 #[test]
@@ -135,4 +147,21 @@ fn nesting_family_is_linear_at_phase_one() {
         prev = her.total();
     }
     assert!(deltas.windows(2).skip(1).all(|w| w[0] == w[1]), "{deltas:?}");
+}
+
+#[test]
+fn curried_erection_conforms_where_it_reaches_and_reports_where_it_does_not() {
+    let c = compile_source_with(&format!("for(y <- {B}){{ *y }} | {B}!({C}!(Nil))"), Scheme::Curried).unwrap();
+    assert_eq!(c.header.scheme, Scheme::Curried);
+    let shapes: Vec<_> = verify::all_atoms(&c.term).iter().map(|a| a.shape()).collect();
+    assert!(shapes.contains(&f1r3comb_term::Shape::Cstar) && !shapes.contains(&f1r3comb_term::Shape::Inst));
+    // the gate's b is static: the store is built by cons_q from a constant
+    assert!(shapes.contains(&f1r3comb_term::Shape::ConsQ));
+    // W's gate stores two scoped atoms: the hazard, and the discipline says no
+    let e = compile_source_with(&w(), Scheme::Curried).err().unwrap();
+    assert!(e.iter().any(|d| d.code == "comb-curried-store"));
+    assert!(e.iter().any(|d| d.code == "comb-discipline"));
+    // an inner input using the outer bound name: no curried template exists
+    let e = compile_source_with(&format!("for(y <- {B}){{ for(z <- {C}){{ y!(*z) }} }}"), Scheme::Curried).err().unwrap();
+    assert!(e.iter().any(|d| d.code == "comb-curried-reach"), "{e:?}");
 }

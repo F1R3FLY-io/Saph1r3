@@ -45,12 +45,37 @@ fn is_static(n: &CName) -> bool {
 
 pub fn check(t: &Term, out: &mut Vec<Diag>) {
     let atoms = all_atoms(t);
-    // channels that carry addresses
-    let carrying: HashSet<Vec<u8>> = atoms
+    // channels that carry addresses, or names built from one: seeded by the
+    // messages whose payload is an address, propagated through the routers
+    // that copy a payload and the constructors that build from one
+    let mut carrying: HashSet<Vec<u8>> = atoms
         .iter()
         .filter(|a| a.shape() == Shape::M && address_like(&a.names()[1]))
         .map(|a| a.names()[0].encode().to_vec())
         .collect();
+    loop {
+        let before = carrying.len();
+        for a in &atoms {
+            let ns = a.names();
+            let outs: Vec<&CName> = match a.shape() {
+                Shape::D => vec![&ns[1], &ns[2]],
+                Shape::Fw => vec![&ns[1]],
+                Shape::Inst | Shape::Cstar => vec![&ns[1]],
+                s if s.is_constructor() => vec![ns.last().unwrap()],
+                _ => continue,
+            };
+            let rule = rules_for(a.shape()).next().unwrap();
+            let fed = rules()[rule].premises.iter().any(|p| carrying.contains(ns[p.subject as usize].encode()));
+            if fed {
+                for o in outs {
+                    carrying.insert(o.encode().to_vec());
+                }
+            }
+        }
+        if carrying.len() == before {
+            break;
+        }
+    }
     let err = |out: &mut Vec<Diag>, code: &'static str, m: String| {
         if !out.iter().any(|d| d.code == code && d.message == m) {
             out.push(Diag { code, severity: Severity::Error, span: None, message: m });
@@ -71,8 +96,9 @@ pub fn check(t: &Term, out: &mut Vec<Diag>) {
                 err(out, "comb-discipline", format!("{} joins {n} address-carrying inputs at static channels", s.name()));
             }
         }
-        // Req. 5.29: no address supplies a value to an (o5) chain
-        if s.is_constructor() && inputs.iter().any(|c| carrying.contains(c.encode())) {
+        // Req. 5.29: no address supplies a value to an (o5) chain; the chains
+        // are the constructors erected at allocated channels
+        if s.is_constructor() && !inputs.iter().all(|c| is_static(c)) && inputs.iter().any(|c| carrying.contains(c.encode())) {
             err(out, "comb-o5-address", format!("an address flows into a {} of an (o5) chain", s.name()));
         }
     }

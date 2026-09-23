@@ -1,8 +1,8 @@
 //! The atom multiset and the lattice point (F1R3Comb v0.6 §10; draft 3 §9).
 //!
 //! [`top_level`] is the `|−|` of rhocomb-logic Def. 2.9, the logic's input.
-//! [`hereditary`] counts every atom occurrence reachable through stores,
-//! contexts and quotations. Under the `inst` erection a phase-two image is,
+//! [`hereditary`] counts every atom occurrence the term can run: through
+//! stores, contexts and message payloads. Under the `inst` erection a phase-two image is,
 //! at top level, one `inst` shape per unit (Req. 10.3): the informative point
 //! is the phase-one image's, which `f1r3comb-ir` reports.
 
@@ -42,6 +42,10 @@ pub fn top_level(t: &Term) -> Counts {
     c
 }
 
+/// Occurrence counts over everything the term can run: its atoms, the
+/// processes it stores, the contexts it instantiates, and the code carried
+/// by its messages. Channel names are not code, and neither is an address
+/// (a leaf beneath a hole or a root), so neither is descended into.
 pub fn hereditary(t: &Term) -> Counts {
     let mut c = Counts::default();
     let mut seen: HashSet<Vec<u8>> = HashSet::new();
@@ -52,9 +56,12 @@ pub fn hereditary(t: &Term) -> Counts {
             if let Some(p) = a.store().or(a.context()) {
                 work.push(p.clone());
             }
-            for n in a.names() {
-                if seen.insert(n.encode().to_vec()) {
-                    work.push(n.drop());
+            if a.shape() == Shape::M {
+                let v = &a.names()[1];
+                let (base, path) = crate::addr::spine(v);
+                let address = !path.is_empty() && (base.is_hole().is_some() || crate::addr::is_root(&base));
+                if !address && seen.insert(v.encode().to_vec()) {
+                    work.push(v.drop());
                 }
             }
         }

@@ -1,7 +1,7 @@
 //! `f1r3comb` — the staged compiler driver.
 //!
 //! ```text
-//! f1r3comb compile PROGRAM.rho [-o OUT.comb] [--emit-ir-text OUT.txt] [--emit-gpu DIR] [--scheme inst|positional]
+//! f1r3comb compile PROGRAM.rho [-o OUT.comb] [--emit-ir-text OUT.txt] [--emit-gpu DIR] [--scheme inst|curried|positional]
 //! f1r3comb run INPUT [--machine host|gpu] [--seed N] [--resolver R] [--max-steps N] [--trace] [--out FINAL.comb]
 //! f1r3comb print INPUT            textual IR
 //! f1r3comb lattice INPUT          expressiveness-lattice audit
@@ -21,8 +21,8 @@ use std::process::ExitCode;
 
 const USAGE: &str = "usage:
   f1r3comb compile PROGRAM.rho [-o OUT.comb] [--emit-ir-text OUT.txt] [--emit-gpu DIR] [--seed N] [--max-steps N]
-                   [--scheme inst|positional]   (positional: the unsound negative control, for experiments)
-  f1r3comb run INPUT [--machine host|gpu] [--seed N] [--resolver maximal-progress|single-by-priority|single-uniform]
+                   [--scheme inst|curried|positional]   (curried: the logic's build; positional: the unsound control)
+  f1r3comb run INPUT [--machine host|gpu] [--seed N] [--resolver maximal-progress|single-by-priority|single-uniform|cross-instance]
                      [--max-steps N] [--trace] [--out FINAL.comb]
   f1r3comb print INPUT
   f1r3comb lattice INPUT
@@ -82,7 +82,7 @@ fn scheme(a: &Args) -> Result<Scheme, String> {
     match a.get("--scheme").unwrap_or("inst") {
         "inst" => Ok(Scheme::Inst),
         "positional" => Ok(Scheme::Positional),
-        "curried" => Err("the curried erection is not emitted by this build [comb-scheme-mismatch]".into()),
+        "curried" => Ok(Scheme::Curried),
         s => Err(format!("unknown scheme {s}")),
     }
 }
@@ -99,9 +99,6 @@ fn load(path: &str, a: &Args) -> Result<Loaded, String> {
     let bytes = std::fs::read(p).map_err(|e| format!("{path}: {e}"))?;
     if Artefact::is_artefact(&bytes) {
         let art = Artefact::decode(&bytes).map_err(|e| e.to_string())?;
-        if art.header.scheme == Scheme::Curried {
-            return Err("artefact names the curried erection, which this machine build does not deploy [comb-scheme-mismatch]".into());
-        }
         return Ok(Loaded { term: art.term, header: Some(art.header), ir: None, deployed: false, kind: "comb" });
     }
     if bytes.starts_with(f1r3comb_mat::CMAT_MAGIC) {
@@ -243,6 +240,9 @@ fn run(a: &Args) -> Result<(), String> {
         "host" => f1r3comb_par::run(&t, &cfg, &mut f1r3comb_par::Host),
         "gpu" => {
             f1r3comb_gpu::device_accepts(&t)?;
+            if cfg.resolver == Resolver::CrossInstance {
+                return Err("the cross-instance resolver needs the intern table and runs on the host only".into());
+            }
             run_gpu(&t, &cfg)?
         }
         m => return Err(format!("unknown machine {m}")),
@@ -302,7 +302,7 @@ fn lattice(l: &Loaded) -> String {
     );
     if l.header.as_ref().map(|h| h.scheme) == Some(Scheme::Inst) {
         s += "  note: under the inst erection each unit's top level is one inst shape (F1R3Comb v0.6 Req. 10.3);\n";
-        s += "        a per-shape phase-two report needs the curried-erection build, which this build does not emit.\n";
+        s += "        compile with --scheme curried for a per-shape phase-two report (where the curried erection reaches).\n";
     }
     s
 }

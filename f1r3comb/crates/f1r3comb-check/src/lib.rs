@@ -232,3 +232,41 @@ pub fn differential_gpu(g: &mut f1r3comb_gpu::device::Gpu, src: &str, seeds: &[u
         })
         .collect()
 }
+
+/// The golden text for a program (F1R3Comb v0.6 Req. 8.8): source, phase-one
+/// IR with its hash, target with its hash and encoding, the deployed root,
+/// and the reduction sequence under maximal progress, seed 0, with per-step
+/// rule counts, names built and state hashes.
+pub fn golden(src: &str, max_steps: u64) -> String {
+    use std::fmt::Write;
+    let c = compile(src, Scheme::Inst);
+    let mut s = String::new();
+    let _ = writeln!(s, "# source\n{src}\n");
+    let _ = writeln!(s, "# phase one (RC^nu), hash {}\n{}", c.ir.hash().hex(), c.ir.render());
+    let _ = writeln!(s, "# phase two\n{}", f1r3comb_term::print::render(&c.term, &[]));
+    let _ = writeln!(s, "# encoding ({} bytes)", c.term.encode().len());
+    for chunk in c.term.encode().chunks(48) {
+        let _ = writeln!(s, "{}", chunk.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    }
+    let (t, root) = f1r3comb_par::deploy(&c.term, &mut f1r3comb_term::addr::Allocator::new());
+    let _ = writeln!(s, "\n# deploy: root {}", root.map(|r| r.content_hash().hex()).unwrap_or_default());
+    let cfg = f1r3comb_par::Config { seed: 0, max_steps, hash_states: true, ..Default::default() };
+    let r = f1r3comb_par::run(&t, &cfg, &mut f1r3comb_par::Host);
+    let _ = writeln!(s, "# reduction (maximal progress, seed 0)");
+    for st in &r.steps {
+        let rules: Vec<String> = st
+            .per_rule
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| **n > 0)
+            .map(|(i, n)| format!("{}:{n}", f1r3comb_term::rules::rules()[i].name))
+            .collect();
+        let _ = writeln!(s, "{:4} fired {:3} names {:3}  {:40} {}", st.step, st.fired, st.names_built, rules.join(" "),
+            st.state_hash.map(|h| h.hex()[..16].to_string()).unwrap_or_default());
+    }
+    let _ = writeln!(s, "# stop {:?}, {} steps, {} firings, final {}", r.stop, r.steps.len(), r.fired, r.final_hash().hex());
+    let lbl = |e: &[u8]| format!("#{}", &f1r3comb_term::blake2b(e).hex()[..8]);
+    let obs: Vec<String> = observe(&r.final_term).iter().map(|((a, b), n)| format!("{}!{} x{n}", lbl(a), lbl(b))).collect();
+    let _ = writeln!(s, "# observation: {}", obs.join(", "));
+    s
+}

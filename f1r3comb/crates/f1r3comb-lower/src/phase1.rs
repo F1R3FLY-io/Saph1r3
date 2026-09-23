@@ -154,6 +154,9 @@ enum Event {
 pub struct Marks {
     pub group: HashMap<u32, (u32, u32)>,
     pub receives: u32,
+    /// The gates' store channels `b`: unmarked, since they carry static
+    /// code (Rem. 6.20); the curried erection makes them static.
+    pub gate_b: std::collections::HashSet<u32>,
 }
 
 #[derive(Default)]
@@ -265,6 +268,7 @@ impl Phase1 {
 
         let mut vars: Vec<u32> = Vec::new();
         let b = self.fresh(&mut vars);
+        self.marks.gate_b.insert(b);
         let c = self.fresh(&mut vars);
         let ps: Vec<u32> = (0..=k).map(|_| self.fresh(&mut vars)).collect();
         let qs: Vec<u32> = (1..k).map(|_| self.fresh(&mut vars)).collect();

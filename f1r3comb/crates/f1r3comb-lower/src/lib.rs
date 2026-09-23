@@ -123,16 +123,6 @@ pub fn compile_norm(p: &Norm) -> Result<Compiled, Vec<Diag>> {
 pub fn compile_norm_with(p: &Norm, scheme: Scheme) -> Result<Compiled, Vec<Diag>> {
     let mut diags = Vec::new();
     check::level_and_closed(p, &mut diags);
-    if scheme == Scheme::Curried {
-        diags.push(Diag {
-            code: "comb-scheme-mismatch",
-            severity: Severity::Error,
-            span: None,
-            message: "this build does not emit the curried erection (feature curried-erection is not implemented); \
-                      the machine runs curried templates, see f1r3comb-check's E5-E7"
-                .into(),
-        });
-    }
     if diags.iter().any(|d| d.severity == Severity::Error) {
         return Err(diags);
     }
@@ -145,9 +135,12 @@ pub fn compile_norm_with(p: &Norm, scheme: Scheme) -> Result<Compiled, Vec<Diag>
     }
     // phase two
     let mut p2 = phase2::Phase2::new(scheme);
+    p2.static_vars = p1.marks.gate_b.clone();
     let term = p2.closed(&ir);
-    // post-passes
-    if scheme == Scheme::Inst {
+    diags.append(&mut p2.diags);
+    // post-passes (the positional scheme is the negative control and is not
+    // held to the discipline)
+    if scheme != Scheme::Positional {
         verify::check(&term, &mut diags);
     }
     if diags.iter().any(|d| d.severity == Severity::Error) {

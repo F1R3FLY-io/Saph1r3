@@ -97,10 +97,8 @@ fn e5_image(s: &[CName], arm: Arm) -> Vec<Atom> {
     }
 }
 
-/// E5: a unit of two top-level atoms, `n` concurrent instances. Returns
-/// (steps, erected fw, mixed fw).
-pub fn e5(arm: Arm, n: usize, seed: u64, parallel: bool) -> (u64, usize, usize) {
-    let mut f = Fresh::new();
+/// E5's initial state: `n` instances of the unit and their addresses.
+pub fn e5_term(arm: Arm, n: usize, f: &mut Fresh) -> Term {
     let s = f.take(64);
     let img = e5_image(&s, arm);
     let mut atoms = Vec::new();
@@ -108,11 +106,24 @@ pub fn e5(arm: Arm, n: usize, seed: u64, parallel: bool) -> (u64, usize, usize) 
         atoms.extend(img.iter().cloned());
         atoms.push(Atom::m(s[0].clone(), a));
     }
-    let (steps, fin) = run_to_quiescence(&Term::from_atoms(atoms), seed, parallel);
-    let fws: Vec<&Atom> = fin.atoms().iter().filter(|a| a.shape() == Shape::Fw).collect();
-    assert_eq!(fws.len(), n, "{arm:?}: every instance erects its forwarder");
-    let mixed = fws.iter().filter(|a| owner(&a.names()[0]) != owner(&a.names()[1])).count();
-    (steps, fws.len(), mixed)
+    Term::from_atoms(atoms)
+}
+
+/// Erected forwarders whose two names lie beneath different addresses.
+pub fn mixed_fws(fin: &Term) -> usize {
+    fin.atoms()
+        .iter()
+        .filter(|a| a.shape() == Shape::Fw && owner(&a.names()[0]) != owner(&a.names()[1]))
+        .count()
+}
+
+/// E5: a unit of two top-level atoms, `n` concurrent instances. Returns
+/// (steps, erected fw, mixed fw).
+pub fn e5(arm: Arm, n: usize, seed: u64, parallel: bool) -> (u64, usize, usize) {
+    let (steps, fin) = run_to_quiescence(&e5_term(arm, n, &mut Fresh::new()), seed, parallel);
+    let fws = fin.atoms().iter().filter(|a| a.shape() == Shape::Fw).count();
+    assert_eq!(fws, n, "{arm:?}: every instance erects its forwarder");
+    (steps, fws, mixed_fws(&fin))
 }
 
 fn dx_image(arm: Arm, x: &CName, r: &CName, s: &[CName]) -> Vec<Atom> {

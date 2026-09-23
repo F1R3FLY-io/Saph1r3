@@ -1,0 +1,151 @@
+# source
+for(y <- @{@{Nil}!(Nil)}){ @{@{Nil}!(Nil)}!(*y) | *y } | @{@{Nil}!(Nil)}!(for(y <- @{@{Nil}!(Nil)}){ @{@{Nil}!(Nil)}!(*y) | *y })
+
+# phase one (RC^nu), hash 253d8e5c33ac2c28e9bfd2e304101da2d85fc7e28248d6fddee4da77723a1922
+m(#c0ffc912, #3ebc1de1)
+new z0 z1 z2 z3 z4 z5 z6 z7 z8 {
+    d(#c0ffc912, z2, z5)
+    d(z5, z3, z4)
+    s(z2, z0, z1)
+    q(z0, {
+        e(z7)
+    })
+    e(z1)
+    fw(z3, #c0ffc912)
+    fw(z4, z7)
+    m(#bb192435, z8)
+}
+
+# phase two
+; F1R3Comb target (rho combinators, presentation A)
+; term hash: 7a471f2caa28dcf457155df222e6eb30136a728725790769e95c747394f84b44
+; atoms: 3
+term {
+    m(K, #e3e13866)
+    e(f*)
+    inst(r*, f*, ctx {
+        m(r*, □0.0001001)
+        d(K, □0.011, □0.00110)
+        d(□0.00110, □0.00100, □0.00101)
+        fw(□0.00100, K)
+        fw(□0.00101, □0.0001000)
+        s(□0.011, □0.1, □0.010)
+        e(□0.010)
+        q(□0.1, {
+            e(□0.0001000)
+        })
+    })
+}
+
+names {
+    #e3e13866 = @{
+        e(f*)
+        inst(r*, f*, ctx {
+            m(r*, □0.0001001)
+            d(K, □0.011, □0.00110)
+            d(□0.00110, □0.00100, □0.00101)
+            fw(□0.00100, K)
+            fw(□0.00101, □0.0001000)
+            s(□0.011, □0.1, □0.010)
+            e(□0.010)
+            q(□0.1, {
+                e(□0.0001000)
+            })
+        })
+    }
+}
+
+# encoding (860 bytes)
+310332403240304030403102394034403440306040344030403440344030613108324034403040324032403240324032
+403240326200403040304030403240304030403040304032403040303340324030403040324032403262004030403240
+304030403240304030403240324032403240326200403040304032403040304032403040304030334032403240324032
+403262004030403040324030403040324030403040304032403240324032403262004030403040324030403040304030
+403240324032403240326200403040304032403040304030403240304030354032403240324032403262004030403040
+324030403040304030403240304030354032403240324032403262004030403040324030403040304032403040304032
+403240324032403240324032620040304030403040324030403040304030403038403240324032620040304032403040
+304032403040304032620040324030403040324032403262004030403240304030403039403240324032620040304032
+4030403040303a4032620040324030403039403240324032403240324032403262004030403040304032403040304030
+403040303940344034403060403440304034403440306131083240344030403240324032403240324032403262004030
+403040304032403040304030403040324030403033403240304030403240324032620040304032403040304032403040
+304032403240324032403262004030403040324030403040324030403040303340324032403240324032620040304030
+403240304030403240304030403040324032403240324032620040304030403240304030403040304032403240324032
+403262004030403040324030403040304032403040303540324032403240324032620040304030403240304030403040
+304032403040303540324032403240324032620040304030403240304030403040324030403040324032403240324032
+403240326200403040304030403240304030403040304030384032403240326200403040324030403040324030403040
+326200403240304030403240324032620040304032403040304030394032403240326200403040324030403040303a40
+3262004032403040303940324032403240324032403240326200403040304030403240304030403040304030
+
+# deploy: root 9b8c1ab798e2996f5d282482e0004c13ff31bd5a1a5dcdab20dfbbfc742626fb
+# reduction (maximal progress, seed 0)
+   0 fired   1 names  20  inst:1                                   1058128317c66ad3
+   1 fired   1 names   0  eval:1                                   bf9a7ca786fb6ecd
+   2 fired   1 names   0  dist:1                                   b5e998693866cca4
+   3 fired   2 names   0  dist:1 synch:1                           3cada2b0ea0d7fb4
+   4 fired   3 names   0  forward:2 quote:1                        bacf9d22fd75f0fb
+   5 fired   1 names   0  eval:1                                   c6d1ca0e75e24146
+   6 fired   1 names   0  eval:1                                   b3f97a575afc1139
+   7 fired   1 names  20  inst:1                                   c65215f4411c5192
+   8 fired   1 names   0  eval:1                                   5b5c93fb3a40e3b7
+   9 fired   1 names   0  dist:1                                   48dfcadbe6f58bc1
+  10 fired   2 names   0  dist:1 synch:1                           f743e098a2ef6a74
+  11 fired   3 names   0  forward:2 quote:1                        b2525569c2e917d1
+  12 fired   1 names   0  eval:1                                   c57a01a858a1a830
+  13 fired   1 names   0  eval:1                                   012f50dee681fc86
+  14 fired   1 names  20  inst:1                                   88fa5ab2dec35b1d
+  15 fired   1 names   0  eval:1                                   7dd12c5173c3a803
+  16 fired   1 names   0  dist:1                                   2eae619b0477cd6a
+  17 fired   2 names   0  dist:1 synch:1                           39dc55f1d0b4863e
+  18 fired   3 names   0  forward:2 quote:1                        7ec9c9d56b73f78a
+  19 fired   1 names   0  eval:1                                   e310892053c6f046
+  20 fired   1 names   0  eval:1                                   fb701ea268fded93
+  21 fired   1 names  20  inst:1                                   8b258e4ebe8cffd8
+  22 fired   1 names   0  eval:1                                   4a8e768c0749e923
+  23 fired   1 names   0  dist:1                                   5d689ac59c54be51
+  24 fired   2 names   0  dist:1 synch:1                           1ee6c281318038bf
+  25 fired   3 names   0  forward:2 quote:1                        bb94d6dce7969a9b
+  26 fired   1 names   0  eval:1                                   1ca9dead17d8b932
+  27 fired   1 names   0  eval:1                                   56a2dd2e68de45c0
+  28 fired   1 names  20  inst:1                                   abb67949dee15f1f
+  29 fired   1 names   0  eval:1                                   67503cf4a79910e9
+  30 fired   1 names   0  dist:1                                   5f32a0253ea3faef
+  31 fired   2 names   0  dist:1 synch:1                           cbedfbf42e381b98
+  32 fired   3 names   0  forward:2 quote:1                        985320d65bbc9bc9
+  33 fired   1 names   0  eval:1                                   35ac75a7e650d165
+  34 fired   1 names   0  eval:1                                   f407c624d8f88d6e
+  35 fired   1 names  20  inst:1                                   f57cc41941b216fc
+  36 fired   1 names   0  eval:1                                   d41879e80842eb72
+  37 fired   1 names   0  dist:1                                   574b9d7d93d18ee0
+  38 fired   2 names   0  dist:1 synch:1                           dfc95d0e79036b92
+  39 fired   3 names   0  forward:2 quote:1                        597dd1af31ca5952
+  40 fired   1 names   0  eval:1                                   8885994c8064e6e3
+  41 fired   1 names   0  eval:1                                   8c1ee0414bcd37bc
+  42 fired   1 names  20  inst:1                                   3c3612ffaee8a8b7
+  43 fired   1 names   0  eval:1                                   f349e9446309e691
+  44 fired   1 names   0  dist:1                                   51d26f93d95a70a8
+  45 fired   2 names   0  dist:1 synch:1                           2d3c83338065ec5e
+  46 fired   3 names   0  forward:2 quote:1                        90a4d7d55f41ef38
+  47 fired   1 names   0  eval:1                                   a3ba4853de3ede45
+  48 fired   1 names   0  eval:1                                   8753b7ddd9f09c26
+  49 fired   1 names  20  inst:1                                   d83b39084da5f95c
+  50 fired   1 names   0  eval:1                                   5a7af9fa2995ccdc
+  51 fired   1 names   0  dist:1                                   dd2078af60e3295d
+  52 fired   2 names   0  dist:1 synch:1                           b4392748613009d8
+  53 fired   3 names   0  forward:2 quote:1                        a9dc52a70611e15e
+  54 fired   1 names   0  eval:1                                   1f2ba75e6c8d67e2
+  55 fired   1 names   0  eval:1                                   bf84e74740adc401
+  56 fired   1 names  20  inst:1                                   9258a525442c8306
+  57 fired   1 names   0  eval:1                                   3004225f5b2e61cd
+  58 fired   1 names   0  dist:1                                   3a912579c13e1b87
+  59 fired   2 names   0  dist:1 synch:1                           4575060402cfbea3
+  60 fired   3 names   0  forward:2 quote:1                        710c000ddc698dc3
+  61 fired   1 names   0  eval:1                                   9b21ff1f99263139
+  62 fired   1 names   0  eval:1                                   b8c28a82c845c1ff
+  63 fired   1 names  20  inst:1                                   3749c0236f52faf5
+  64 fired   1 names   0  eval:1                                   d7dc0b437ba9394b
+  65 fired   1 names   0  dist:1                                   09cb899c2b8985d4
+  66 fired   2 names   0  dist:1 synch:1                           c6e1ee2f2b63ac4e
+  67 fired   3 names   0  forward:2 quote:1                        26929bdf662fe62f
+  68 fired   1 names   0  eval:1                                   2e6cd06c598b4143
+  69 fired   1 names   0  eval:1                                   6330ed0209e89f2a
+# stop MaxSteps, 70 steps, 100 firings, final 6330ed0209e89f2a784c899cc4c47e9bce1e4d352b340e793d6eda8d50d25288
+# observation: #6e5b8d87!#e3e13866 x1

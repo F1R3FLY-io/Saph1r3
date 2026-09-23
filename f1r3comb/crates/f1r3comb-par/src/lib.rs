@@ -22,14 +22,20 @@ use f1r3comb_term::{Atom, CName, Hash32, Shape, Term};
 /// every name of the term, prefix-incomparable with every root the
 /// allocator has issued — at `r*`.
 pub fn deploy(t: &Term, alloc: &mut Allocator) -> (Term, Option<CName>) {
-    let waits = t.atoms().iter().any(|a| a.shape() == Shape::Inst && *a.subject() == r_star());
+    let waits = t.atoms().iter().any(|a| a.shape() != Shape::M && *a.subject() == r_star());
     if !waits {
         return (t.clone(), None);
     }
     let root = alloc.root(&largest_name(t));
+    (deploy_at(t, &root), Some(root))
+}
+
+/// Deploy at a given root address (the caller has checked it with
+/// `Allocator::check`).
+pub fn deploy_at(t: &Term, root: &CName) -> Term {
     let mut atoms = t.atoms().to_vec();
     atoms.push(Atom::m(r_star(), root.clone()));
-    (Term::from_atoms(atoms), Some(root))
+    Term::from_atoms(atoms)
 }
 
 /// A redex (Mat Def. 5.1). Field order is the canonical key (Def. 5.2).
@@ -216,6 +222,89 @@ pub fn find_bucketed(st: &State) -> Vec<Redex> {
         }
     }
     out
+}
+
+// ---------------------------------------------------------------------------
+// Instances (for the adversarial resolver)
+
+/// Which instance a row belongs to. An instance is identified by its
+/// address: a leaf `σ·w` names instance `σ·w'` where `w'` is `w` without its
+/// last Elias-gamma code (the unit's own bound names are `γ(j)` beneath the
+/// address, and a nested instance's address is a spare leaf). A name whose
+/// path does not parse as gamma codes (a hand-built image) belongs to its
+/// spine's base. Rows whose names are all static belong to no instance.
+#[derive(Default)]
+pub struct Instances {
+    memo: std::collections::HashMap<NameId, Option<(NameId, u32)>>,
+}
+
+fn gamma_prefix(path: &[bool]) -> Option<usize> {
+    // length of the path without its last complete gamma code
+    let mut i = 0;
+    let mut last = 0;
+    while i < path.len() {
+        let start = i;
+        let mut z = 0;
+        while i < path.len() && !path[i] {
+            z += 1;
+            i += 1;
+        }
+        if i + z + 1 > path.len() {
+            return None;
+        }
+        i += z + 1;
+        last = start;
+    }
+    Some(last)
+}
+
+impl Instances {
+    pub fn of_name(&mut self, it: &mut InternTable, n: NameId) -> Option<(NameId, u32)> {
+        if let Some(x) = self.memo.get(&n) {
+            return *x;
+        }
+        let name = it.name(n);
+        let (base, path) = f1r3comb_term::addr::spine(&name);
+        let r = if path.is_empty() || !base.is_closed() {
+            None
+        } else {
+            let keep = gamma_prefix(&path).unwrap_or(0);
+            let b = it.intern(&base).ok();
+            b.map(|b| (b, hash_path(&path[..keep])))
+        };
+        self.memo.insert(n, r);
+        r
+    }
+
+    pub fn of_row(&mut self, it: &mut InternTable, row: &Row) -> Option<(NameId, u32)> {
+        let n = row.shape.arity();
+        (0..n).filter(|j| row.shape.arg(*j) == f1r3comb_term::Arg::Name).find_map(|j| self.of_name(it, row.args[j]))
+    }
+}
+
+fn hash_path(p: &[bool]) -> u32 {
+    p.iter().fold(0x9e37u32, |h, b| h.wrapping_mul(31).wrapping_add(*b as u32 + 1))
+}
+
+/// The adversarial order: mixed redexes first, each class by priority.
+pub fn cross_order(st: &State, it: &mut InternTable, inst: &mut Instances, rs: &[Redex], seed: u64, step: u64) -> Vec<usize> {
+    let mut v: Vec<(bool, u64, usize)> = rs
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let mut ids: Vec<(NameId, u32)> = Vec::new();
+            for (s, row) in row_refs(r) {
+                if let Some(x) = inst.of_row(it, &st.table(s).row(s, row as usize)) {
+                    if !ids.contains(&x) {
+                        ids.push(x);
+                    }
+                }
+            }
+            (ids.len() < 2, priority(seed, step, r), i)
+        })
+        .collect();
+    v.sort_unstable();
+    v.into_iter().map(|x| x.2).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +558,11 @@ pub enum Resolver {
     SingleByPriority,
     /// Fire one redex chosen by `mix64` over the enumerated set.
     SingleUniform,
+    /// The adversarial profile of F1R3Comb v0.6 Obl. 11.2 / Mat v0.5: the
+    /// greedy maximal step, but every redex whose participants belong to two
+    /// different instances is preferred to every redex that does not. Host
+    /// only: a row's instance is read off its names (see [`Instances`]).
+    CrossInstance,
 }
 
 impl Resolver {
@@ -477,10 +571,11 @@ impl Resolver {
             Resolver::MaximalProgress => "maximal-progress",
             Resolver::SingleByPriority => "single-by-priority",
             Resolver::SingleUniform => "single-uniform",
+            Resolver::CrossInstance => "cross-instance",
         }
     }
     pub fn parse(s: &str) -> Option<Resolver> {
-        [Resolver::MaximalProgress, Resolver::SingleByPriority, Resolver::SingleUniform]
+        [Resolver::MaximalProgress, Resolver::SingleByPriority, Resolver::SingleUniform, Resolver::CrossInstance]
             .into_iter()
             .find(|r| r.name() == s)
     }
@@ -568,7 +663,9 @@ pub fn choose(st: &State, rs: &[Redex], cfg: &Config, step: u64) -> Vec<usize> {
         return Vec::new();
     }
     match cfg.resolver {
-        Resolver::MaximalProgress => select_greedy(st, rs, &priority_order(rs, cfg.seed, step)),
+        // CrossInstance needs the intern table; a device (or any engine
+        // without one) runs it as maximal progress, and `run_state` intercepts
+        Resolver::MaximalProgress | Resolver::CrossInstance => select_greedy(st, rs, &priority_order(rs, cfg.seed, step)),
         Resolver::SingleByPriority => vec![priority_order(rs, cfg.seed, step)[0]],
         Resolver::SingleUniform => {
             let h = mix64(mix64(mix64(cfg.seed) ^ step) ^ 0x5eed);
@@ -590,11 +687,19 @@ pub fn run(term: &Term, cfg: &Config, engine: &mut dyn StepEngine) -> RunReport 
 }
 
 pub fn run_state(st: &mut State, it: &mut InternTable, cfg: &Config, engine: &mut dyn StepEngine) -> RunReport {
+    let mut instances = Instances::default();
     let mut steps = Vec::new();
     let mut fired = 0u64;
     let mut stop = Stop::MaxSteps;
     for t in 0..cfg.max_steps {
-        let (rs, chosen) = engine.find_and_select(st, cfg, t);
+        let (rs, chosen) = if cfg.resolver == Resolver::CrossInstance {
+            let rs = find(st, cfg.finder);
+            let order = cross_order(st, it, &mut instances, &rs, cfg.seed, t);
+            let chosen = if rs.is_empty() { Vec::new() } else { select_greedy(st, &rs, &order) };
+            (rs, chosen)
+        } else {
+            engine.find_and_select(st, cfg, t)
+        };
         if chosen.is_empty() {
             stop = Stop::Quiescent;
             break;
