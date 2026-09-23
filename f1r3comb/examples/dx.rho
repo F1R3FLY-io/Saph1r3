@@ -1,0 +1,5 @@
+// The recursion combinator D_x of draft 3 Ex. 6.9, sent to itself: every
+// unfolding erects a fresh instance at a strictly deeper address. It does
+// not terminate; run it with --max-steps and --trace.
+for(y <- @{@{Nil}!(Nil)}){ @{@{Nil}!(Nil)}!(*y) | *y }
+| @{@{Nil}!(Nil)}!(for(y <- @{@{Nil}!(Nil)}){ @{@{Nil}!(Nil)}!(*y) | *y })

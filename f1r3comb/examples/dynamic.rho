@@ -1,0 +1,6 @@
+// A dynamic name (o5): the channel @{*y | *y} is rebuilt at run time from the
+// received name by a cons_| chain, and then listened on.
+// Channels: A = @{Nil}, B = @{@{Nil}!(Nil)}.
+for(y <- @{Nil}){ for(z <- @{*y | *y}){ *z } }
+| @{Nil}!(@{Nil}!(Nil))
+| @{@{Nil}!(Nil) | @{Nil}!(Nil)}!(@{@{Nil}!(Nil)}!(Nil))

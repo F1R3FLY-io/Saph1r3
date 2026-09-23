@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/f1r3comb-term",
+  "crates/f1r3comb-ir",
+  "crates/f1r3comb-lower",
+  "crates/f1r3comb-mat",
+  "crates/f1r3comb-par",
+  "crates/f1r3comb-gpu",
+  "crates/f1r3comb-check",
+  "crates/f1r3comb-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["F1R3FLY.io"]
+
+# The source side is the campf1r3 workspace (K1ndl1ng parser and normaliser),
+# checked out as a sibling directory:  git clone https://github.com/F1R3FLY-io/campf1r3
+# Tested against campf1r3 revision b46e16c25458df8d2309554b316f3818a8e0a276.
+[workspace.dependencies]
+k1ndl1ng-ast = { path = "../campf1r3/crates/k1ndl1ng-ast" }
+k1ndl1ng-parse = { path = "../campf1r3/crates/k1ndl1ng-parse" }
+k1ndl1ng-norm = { path = "../campf1r3/crates/k1ndl1ng-norm" }
+
+[profile.release]
+debug = false

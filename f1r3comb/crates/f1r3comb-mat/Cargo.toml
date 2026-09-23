@@ -1,0 +1,12 @@
+[package]
+name = "f1r3comb-mat"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Matrix representation of rho-combinator terms: intern table, structure-of-arrays state, import/export, canonical .cmat format."
+
+[lib]
+doctest = false
+
+[dependencies]
+f1r3comb-term = { path = "../f1r3comb-term" }

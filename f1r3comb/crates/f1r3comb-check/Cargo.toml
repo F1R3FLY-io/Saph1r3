@@ -1,0 +1,20 @@
+[package]
+name = "f1r3comb-check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Differential checking: a K0 reference reducer against the compiled program on the host machine (and on the GPU with feature `gpu`)."
+
+[lib]
+doctest = false
+
+[features]
+gpu = ["dep:f1r3comb-gpu"]
+
+[dependencies]
+k1ndl1ng-norm = { workspace = true }
+f1r3comb-term = { path = "../f1r3comb-term" }
+f1r3comb-lower = { path = "../f1r3comb-lower" }
+f1r3comb-mat = { path = "../f1r3comb-mat" }
+f1r3comb-par = { path = "../f1r3comb-par" }
+f1r3comb-gpu = { path = "../f1r3comb-gpu", optional = true }

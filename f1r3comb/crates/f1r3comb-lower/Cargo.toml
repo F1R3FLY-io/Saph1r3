@@ -1,0 +1,16 @@
+[package]
+name = "f1r3comb-lower"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The two-phase F1R3Comb translation: K0 normal forms to RC^nu (phase one) and to the rho combinators with inst erection (phase two)."
+
+[lib]
+doctest = false
+
+[dependencies]
+k1ndl1ng-ast = { workspace = true }
+k1ndl1ng-parse = { workspace = true }
+k1ndl1ng-norm = { workspace = true }
+f1r3comb-term = { path = "../f1r3comb-term" }
+f1r3comb-ir = { path = "../f1r3comb-ir" }

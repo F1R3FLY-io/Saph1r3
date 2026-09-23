@@ -1,0 +1,12 @@
+[package]
+name = "f1r3comb-term"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The rho combinators (presentation A): sorts, atoms, drop elimination, canonical encoding, hashing, printer, decoder, rule table, lattice audit."
+
+[dependencies]
+k1ndl1ng-norm = { workspace = true }
+
+[lib]
+doctest = false

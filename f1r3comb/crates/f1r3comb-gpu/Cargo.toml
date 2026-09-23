@@ -1,0 +1,24 @@
+[package]
+name = "f1r3comb-gpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GPU target for rho combinators: WGSL kernels generated from the rule table, the target bundle (program.cmat + kernels.wgsl + manifest.json), and a wgpu device backend."
+
+[lib]
+doctest = false
+
+[features]
+default = ["device"]
+# The wgpu backend. Without it the crate still writes and reads bundles.
+device = ["dep:wgpu", "dep:pollster"]
+
+[dependencies]
+f1r3comb-term = { path = "../f1r3comb-term" }
+f1r3comb-mat = { path = "../f1r3comb-mat" }
+f1r3comb-par = { path = "../f1r3comb-par" }
+wgpu = { version = "25", default-features = false, features = ["wgsl", "vulkan", "metal", "dx12"], optional = true }
+pollster = { version = "0.4", optional = true }
+
+[dev-dependencies]
+naga = { version = "25", features = ["wgsl-in"] }

@@ -1,0 +1,7 @@
+// Draft 3 §6.1's W: received code run twice. Under a positional scheme the two
+// instances of R share their apparatus and can cross (compile with
+// --scheme positional and try several seeds); under inst they cannot.
+for(z <- @{@{@{Nil}!(Nil)}!(Nil)}){ *z | *z }
+| @{@{@{Nil}!(Nil)}!(Nil)}!(for(y <- @{@{Nil}!(Nil)}){ y!(*y) })
+| @{@{Nil}!(Nil)}!(Nil)
+| @{@{Nil}!(Nil)}!(@{@{Nil}!(@{Nil}!(Nil))}!(Nil))

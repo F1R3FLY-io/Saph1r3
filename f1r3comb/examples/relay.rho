@@ -1,0 +1,4 @@
+// Three occurrences of one binder: output subject (o2), drop (o4), and a
+// forwarded name on a static channel (o3).
+for(y <- @{Nil}){ y!(Nil) | *y | @{@{Nil}!(@{Nil}!(Nil))}!(*y) }
+| @{Nil}!(@{@{Nil}!(Nil)}!(Nil))

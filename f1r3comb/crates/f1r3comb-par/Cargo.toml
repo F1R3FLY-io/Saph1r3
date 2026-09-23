@@ -1,0 +1,13 @@
+[package]
+name = "f1r3comb-par"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The bulk-synchronous rho-combinator machine: redex finders, priority, greedy maximal independent step, deterministic commit."
+
+[lib]
+doctest = false
+
+[dependencies]
+f1r3comb-term = { path = "../f1r3comb-term" }
+f1r3comb-mat = { path = "../f1r3comb-mat" }

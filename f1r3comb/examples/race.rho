@@ -1,0 +1,5 @@
+// Two receivers race for one message.
+// Channels: A = @{Nil}, B = @{@{Nil}!(Nil)}, C = @{@{Nil}!(@{Nil}!(Nil))}.
+for(y <- @{Nil}){ @{@{Nil}!(Nil)}!(*y) }
+| for(y <- @{Nil}){ @{@{Nil}!(@{Nil}!(Nil))}!(*y) }
+| @{Nil}!(Nil)

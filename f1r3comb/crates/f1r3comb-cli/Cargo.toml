@@ -1,0 +1,22 @@
+[package]
+name = "f1r3comb-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The f1r3comb command: rho (K0) -> rho-combinator IR -> GPU target."
+
+[[bin]]
+name = "f1r3comb"
+path = "src/main.rs"
+
+[features]
+default = ["gpu"]
+gpu = ["f1r3comb-gpu/device"]
+
+[dependencies]
+f1r3comb-term = { path = "../f1r3comb-term" }
+f1r3comb-lower = { path = "../f1r3comb-lower" }
+f1r3comb-ir = { path = "../f1r3comb-ir" }
+f1r3comb-mat = { path = "../f1r3comb-mat" }
+f1r3comb-par = { path = "../f1r3comb-par" }
+f1r3comb-gpu = { path = "../f1r3comb-gpu", default-features = false }
